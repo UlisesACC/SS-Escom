@@ -46,7 +46,7 @@ cmake --build build-geometria --config Release --parallel 2
 ./build-geometria/simulacion_geometria.exe resultados-geometria
 ```
 
-Para abrir la escena 3D, reconfigurar ese mismo proyecto con `-DCON_VISUALIZADOR=ON`, volver a compilar y ejecutar. Cerrar la ventana para terminar el programa.
+Para abrir la escena 3D, reconfigura con `-DCON_VISUALIZADOR=ON`, vuelve a compilar y define `$env:HELIOS_BUILD = (Resolve-Path ./build-geometria).Path` antes de ejecutar. Así Helios encontrará los recursos gráficos. Cierra la ventana para terminar el programa.
 
 Para calcular radiación (sin ventana):
 
@@ -60,16 +60,64 @@ Helios selecciona el backend disponible. Para solicitar Vulkan explícitamente, 
 
 ## Linux
 
-Instalar previamente las dependencias oficiales de Helios. Desde la raíz de este repositorio, con Helios en la carpeta hermana:
+Con las carpetas `SS-Escom` y `Helios` juntas, ejecuta `cd simulacion_helios` desde la raíz de `SS-Escom`. Si ya estás en `simulacion_helios`, empieza por el comando `ls`.
 
 ```bash
-cmake -S simulacion_helios -B build-geometria -DHELIOS_ROOT="$PWD/../Helios" -DMODO=geometria -DCON_VISUALIZADOR=OFF -DCMAKE_BUILD_TYPE=Release
+cd simulacion_helios
+ls ../../Helios/core/CMake_project.cmake
+```
+
+Si `ls` no encuentra el archivo, ajusta `HELIOS_ROOT` a la ruta real de Helios en los comandos de CMake. Si CMake no está disponible y ya usas Conda, instala CMake con `conda install -c conda-forge cmake` y comprueba la instalación con `cmake --version`.
+
+### Geometría sin ventana
+
+```bash
+cmake -S . -B build-geometria -DHELIOS_ROOT="$PWD/../../Helios" -DMODO=geometria -DCON_VISUALIZADOR=OFF -DCMAKE_BUILD_TYPE=Release
 cmake --build build-geometria --parallel 2
 ./build-geometria/simulacion_geometria resultados-geometria
+```
 
-cmake -S simulacion_helios -B build-radiacion -DHELIOS_ROOT="$PWD/../Helios" -DMODO=radiacion -DCON_VISUALIZADOR=OFF -DCMAKE_BUILD_TYPE=Release
+### Visualizador 3D en Rocky Linux 9
+
+Instala las bibliotecas de desarrollo de OpenGL y X11 en el equipo donde vas a compilar. Este paso requiere permisos de administrador.
+
+```bash
+sudo dnf install libglvnd-devel mesa-libGLU-devel libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel
+```
+
+Compila el visualizador en su propia carpeta para conservar la compilación de geometría sin ventana.
+
+```bash
+cmake -S . -B build-visualizador -DHELIOS_ROOT="$PWD/../../Helios" -DMODO=geometria -DCON_VISUALIZADOR=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build-visualizador --parallel 2
+```
+
+Para abrir la escena, ejecuta el programa desde una terminal del escritorio gráfico. Si te conectas al servidor por XRDP, abre la terminal dentro de esa sesión. `HELIOS_BUILD` apunta a la carpeta donde CMake copió los shaders y otros recursos del visualizador.
+
+```bash
+HELIOS_BUILD="$PWD/build-visualizador" ./build-visualizador/simulacion_geometria resultados-visualizador
+```
+
+Si ya compilaste con el visualizador activado en `build-geometria`, puedes usar ese ejecutable directamente.
+
+```bash
+HELIOS_BUILD="$PWD/build-geometria" ./build-geometria/simulacion_geometria resultados-geometria
+```
+
+Si la ventana sigue sin abrir y aparece un error del controlador `virtio_gpu`, prueba el renderizado por software anteponiendo `LIBGL_ALWAYS_SOFTWARE=1` al comando de ejecución. Por ejemplo, con `build-visualizador`:
+
+```bash
+LIBGL_ALWAYS_SOFTWARE=1 HELIOS_BUILD="$PWD/build-visualizador" ./build-visualizador/simulacion_geometria resultados-visualizador
+```
+
+### Radiación sin ventana
+
+Ejecuta este modo en un equipo con un backend de radiación compatible con Helios.
+
+```bash
+cmake -S . -B build-radiacion -DHELIOS_ROOT="$PWD/../../Helios" -DMODO=radiacion -DCON_VISUALIZADOR=OFF -DCMAKE_BUILD_TYPE=Release
 cmake --build build-radiacion --parallel 2
-./build-radiacion/simulacion_radiacion resultados-radiacion
+HELIOS_BUILD="$PWD/build-radiacion" ./build-radiacion/simulacion_radiacion resultados-radiacion
 ```
 
 ## Experimento de radiación
@@ -94,14 +142,14 @@ La fracción exportada se define como `potencia_hojas / (potencia_hojas + potenc
 
 Cada hoja contiene 4 × 2 primitivas; los archivos de detalle tienen una fila por primitiva, no por hoja. Con los valores iniciales se esperan 128 hojas, 1024 primitivas foliares, área foliar 7.8336 m² y LAI aproximadamente 1.6185. Esos valores son geométricos, no resultados de radiación. Una nueva ejecución sobre el mismo directorio reemplaza los archivos del mismo nombre; usar carpetas distintas para conservar experimentos.
 
-Para graficar el resultado de radiación desde la raíz del repositorio:
+Para graficar el resultado de radiación, ejecuta estos comandos desde el mismo directorio en el que ejecutaste el programa C++. En Linux, desde `simulacion_helios`:
 
 ```bash
 python -m pip install matplotlib
-python simulacion_helios/graficar.py resultados-radiacion/radiacion.csv
+python graficar.py resultados-radiacion/radiacion.csv
 ```
 
-Se genera `resultados-radiacion/comparacion_PAR.png`. El script solo utiliza resultados previamente calculados; no inventa observaciones si faltan datos.
+En Windows, desde la raíz del repositorio, usa `python simulacion_helios/graficar.py resultados-radiacion/radiacion.csv`. Se genera `resultados-radiacion/comparacion_PAR.png`. El script solo utiliza resultados previamente calculados; no inventa observaciones si faltan datos.
 
 ## Cambiar el escenario
 
